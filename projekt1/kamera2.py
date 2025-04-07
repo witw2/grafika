@@ -8,12 +8,12 @@ BIALY = (255, 255, 255)
 CZARNY = (0, 0, 0)
 KOLOR = (200, 0, 0)
 
-mnoznik = 3
+mnoznik = 4
 
 PREDKOSC_RUCHU = 5.0 / mnoznik
 PREDKOSC_OBROTU = 0.012 / mnoznik
 PREDKOSC_ZOOM = 0.01 / mnoznik
-BLISKIE_CIECIE = 0.1
+BLISKIE_CIECIE = 1
 MARTWA_STREFA_JOYSTICKA = 0.1
 
 POCZATKOWY_KAM_X, POCZATKOWY_KAM_Y, POCZATKOWY_KAM_Z = 0.0, 50.0, -100.0
@@ -119,6 +119,7 @@ sciany_prostopadloscianu = [
 ]
 def generuj_losowe_kolory_scian(liczba_scian):
     return [(random.randint(50, 240), random.randint(50, 240), random.randint(50, 240)) for _ in range(liczba_scian)]
+
 dane_sceny = [
     {'wierzcholki': stworz_wierzcholki_prostopadloscianu(sx=0, sy=0, sz=600, szerokosc=150, wysokosc=150, glebokosc=150), 'krawedzie': krawedzie_prostopadloscianu, 'sciany': sciany_prostopadloscianu, 'kolor': KOLOR, 'kolory_scian': generuj_losowe_kolory_scian(len(sciany_prostopadloscianu))},
     {'wierzcholki': stworz_wierzcholki_prostopadloscianu(sx=-250, sy=100, sz=800, szerokosc=50, wysokosc=300, glebokosc=50), 'krawedzie': krawedzie_prostopadloscianu, 'sciany': sciany_prostopadloscianu, 'kolor': KOLOR, 'kolory_scian': generuj_losowe_kolory_scian(len(sciany_prostopadloscianu))},
@@ -126,6 +127,10 @@ dane_sceny = [
     {'wierzcholki': stworz_wierzcholki_prostopadloscianu(sx=0, sy=0, sz=1300, szerokosc=400, wysokosc=50, glebokosc=50), 'krawedzie': krawedzie_prostopadloscianu, 'sciany': sciany_prostopadloscianu, 'kolor': KOLOR, 'kolory_scian': generuj_losowe_kolory_scian(len(sciany_prostopadloscianu))},
     {'wierzcholki': stworz_wierzcholki_prostopadloscianu(sx=150, sy=150, sz=700, szerokosc=80, wysokosc=80, glebokosc=250), 'krawedzie': krawedzie_prostopadloscianu, 'sciany': sciany_prostopadloscianu, 'kolor': KOLOR, 'kolory_scian': generuj_losowe_kolory_scian(len(sciany_prostopadloscianu))}
 ]
+
+def zmien_kolory_scian(dane_sceny):
+    for ksztalt in dane_sceny:
+        ksztalt['kolory_scian'] = generuj_losowe_kolory_scian(len(ksztalt['sciany']))
 
 def swiat_do_kamery(wierzcholek, pos_kamery, baza_p, baza_pr, baza_g):
     v = odejmij_wektory(wierzcholek, pos_kamery)
@@ -177,6 +182,7 @@ zegar = pygame.time.Clock()
 tryb_wypelnienia = False
 wcisniety_M = False
 wcisniety_R3 = False
+wcisniety_6 = False
 
 dziala = True
 while dziala:
@@ -185,41 +191,50 @@ while dziala:
         if zdarzenie.type == pygame.KEYDOWN:
             if zdarzenie.key == pygame.K_ESCAPE: dziala = False
             if zdarzenie.key == pygame.K_r:
-                 kam_x, kam_y, kam_z = POCZATKOWY_KAM_X, POCZATKOWY_KAM_Y, POCZATKOWY_KAM_Z
-                 kam_do_przodu, kam_prawo, kam_gora = oblicz_baze_z_eulerow(
-                     POCZATKOWE_ODCHYLENIE, POCZATKOWE_POCHYLENIE, POCZATKOWE_PRZECHYLENIE
-                 )
-                 pole_widzenia = POCZATKOWE_POLE_WIDZENIA
+                kam_x, kam_y, kam_z = POCZATKOWY_KAM_X, POCZATKOWY_KAM_Y, POCZATKOWY_KAM_Z
+                kam_do_przodu, kam_prawo, kam_gora = oblicz_baze_z_eulerow(
+                    POCZATKOWE_ODCHYLENIE, POCZATKOWE_POCHYLENIE, POCZATKOWE_PRZECHYLENIE
+                )
+                pole_widzenia = POCZATKOWE_POLE_WIDZENIA
             if zdarzenie.key == pygame.K_m:
                 if not wcisniety_M:
                     tryb_wypelnienia = not tryb_wypelnienia
                     wcisniety_M = True
+            if zdarzenie.key == pygame.K_j:
+                zmien_kolory_scian(dane_sceny)
+
         if zdarzenie.type == pygame.KEYUP:
             if zdarzenie.key == pygame.K_m:
                 wcisniety_M = False
 
         if zdarzenie.type == pygame.JOYBUTTONDOWN:
             if joystick is not None and zdarzenie.instance_id == joystick.get_instance_id():
-                 if zdarzenie.button == 7:
-                     kam_x, kam_y, kam_z = POCZATKOWY_KAM_X, POCZATKOWY_KAM_Y, POCZATKOWY_KAM_Z
-                     kam_do_przodu, kam_prawo, kam_gora = oblicz_baze_z_eulerow(
-                         POCZATKOWE_ODCHYLENIE, POCZATKOWE_POCHYLENIE, POCZATKOWE_PRZECHYLENIE
-                     )
-                     pole_widzenia = POCZATKOWE_POLE_WIDZENIA
-                 if zdarzenie.button == 9:
-                     if not wcisniety_R3:
-                         tryb_wypelnienia = not tryb_wypelnienia
-                         wcisniety_R3 = True
+                if zdarzenie.button == 7:
+                    kam_x, kam_y, kam_z = POCZATKOWY_KAM_X, POCZATKOWY_KAM_Y, POCZATKOWY_KAM_Z
+                    kam_do_przodu, kam_prawo, kam_gora = oblicz_baze_z_eulerow(
+                        POCZATKOWE_ODCHYLENIE, POCZATKOWE_POCHYLENIE, POCZATKOWE_PRZECHYLENIE
+                    )
+                    pole_widzenia = POCZATKOWE_POLE_WIDZENIA
+                if zdarzenie.button == 9:
+                    if not wcisniety_R3:
+                        tryb_wypelnienia = not tryb_wypelnienia
+                        wcisniety_R3 = True
+                if zdarzenie.button == 6:
+                    if not wcisniety_6:
+                        zmien_kolory_scian(dane_sceny)
+                        wcisniety_6 = True
         if zdarzenie.type == pygame.JOYBUTTONUP:
-             if joystick is not None and zdarzenie.instance_id == joystick.get_instance_id():
-                 if zdarzenie.button == 9:
-                     wcisniety_R3 = False
-
+            if joystick is not None and zdarzenie.instance_id == joystick.get_instance_id():
+                if zdarzenie.button == 9:
+                    wcisniety_R3 = False
+                if zdarzenie.button == 6:
+                    wcisniety_6 = False
 
     klawisze = pygame.key.get_pressed()
     wejscie_przod_tyl, wejscie_lewo_prawo, wejscie_gora_dol = 0.0, 0.0, 0.0
     wejscie_odchylenie, wejscie_pochylenie, wejscie_przechylenie = 0.0, 0.0, 0.0
-    wejscie_zoom = 0.0; czy_sprint = False
+    wejscie_zoom = 0.0
+    czy_sprint = False
     if klawisze[pygame.K_w]: wejscie_przod_tyl += 1.0
     if klawisze[pygame.K_s]: wejscie_przod_tyl -= 1.0
     if klawisze[pygame.K_a]: wejscie_lewo_prawo -= 1.0
