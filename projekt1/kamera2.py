@@ -1,7 +1,10 @@
+DEBUG = False
+
 import pygame
 import math
 import sys
 import random
+
 
 SZEROKOSC_EKRANU, WYSOKOSC_EKRANU = 1920, 1080
 BIALY = (255, 255, 255)
@@ -128,6 +131,20 @@ dane_sceny = [
     {'wierzcholki': stworz_wierzcholki_prostopadloscianu(sx=150, sy=150, sz=700, szerokosc=80, wysokosc=80, glebokosc=250), 'krawedzie': krawedzie_prostopadloscianu, 'sciany': sciany_prostopadloscianu, 'kolor': KOLOR, 'kolory_scian': generuj_losowe_kolory_scian(len(sciany_prostopadloscianu))}
 ]
 
+if DEBUG:
+    dane_sceny = [
+        {'wierzcholki': stworz_wierzcholki_prostopadloscianu(sx=0, sy=0, sz=800.0, szerokosc=500.0, wysokosc=50.0,glebokosc=25.0),
+         'krawedzie': krawedzie_prostopadloscianu,
+         'sciany': sciany_prostopadloscianu,
+         'kolor': (220, 20, 60),
+         'kolory_scian': generuj_losowe_kolory_scian(len(sciany_prostopadloscianu))},
+        {'wierzcholki': stworz_wierzcholki_prostopadloscianu(sx=0, sy=0, sz=800.0, szerokosc=50.0, wysokosc=500.0,glebokosc=25.0),
+         'krawedzie': krawedzie_prostopadloscianu,
+         'sciany': sciany_prostopadloscianu,
+         'kolor': (30, 144, 255),
+         'kolory_scian': generuj_losowe_kolory_scian(len(sciany_prostopadloscianu))}
+    ]
+
 def zmien_kolory_scian(dane_sceny):
     for ksztalt in dane_sceny:
         ksztalt['kolory_scian'] = generuj_losowe_kolory_scian(len(ksztalt['sciany']))
@@ -162,11 +179,21 @@ def pole_ze_znakiem(punkty):
         j = i
     return pole / 2.0
 
+def odczytaj_os(indeks_osi):
+    if indeks_osi >= 0 and indeks_osi < liczba_osi:
+        wartosc = joystick.get_axis(indeks_osi)
+        return wartosc if abs(wartosc) > MARTWA_STREFA_JOYSTICKA else 0.0
+    return 0.0
+
 pygame.init()
 pygame.joystick.init()
 joystick = None
 liczba_joystickow = pygame.joystick.get_count()
 liczba_osi = 0; liczba_hatow = 0
+
+aktualny_tryb_sortowania = 0 # 0: Średnia Z, 1: Min Z, 2: Max Z
+nazwy_trybow_sortowania = ["Średnia Z", "Min Z (Najbliższy)", "Max Z (Najdalszy)"]
+
 if liczba_joystickow > 0:
     try:
         joystick = pygame.joystick.Joystick(0)
@@ -183,6 +210,7 @@ tryb_wypelnienia = False
 wcisniety_M = False
 wcisniety_R3 = False
 wcisniety_6 = False
+wcisniety_P = False
 
 dziala = True
 while dziala:
@@ -202,10 +230,19 @@ while dziala:
                     wcisniety_M = True
             if zdarzenie.key == pygame.K_j:
                 zmien_kolory_scian(dane_sceny)
+            if zdarzenie.key == pygame.K_p:
+                if not wcisniety_P:
+                    aktualny_tryb_sortowania = (aktualny_tryb_sortowania + 1) % len(nazwy_trybow_sortowania)
+                    nowy_tytul = f"Kamera wirtualna (Sortowanie: {nazwy_trybow_sortowania[aktualny_tryb_sortowania]})"
+                    pygame.display.set_caption(nowy_tytul)
+                    print(f"Zmieniono tryb sortowania na: {nazwy_trybow_sortowania[aktualny_tryb_sortowania]}")
+                    wcisniety_P = True
 
         if zdarzenie.type == pygame.KEYUP:
             if zdarzenie.key == pygame.K_m:
                 wcisniety_M = False
+            if zdarzenie.key == pygame.K_p:
+                wcisniety_P = False
 
         if zdarzenie.type == pygame.JOYBUTTONDOWN:
             if joystick is not None and zdarzenie.instance_id == joystick.get_instance_id():
@@ -252,11 +289,6 @@ while dziala:
     if klawisze[pygame.K_LSHIFT]: czy_sprint = True
 
     if joystick is not None:
-        def odczytaj_os(indeks_osi):
-            if indeks_osi >= 0 and indeks_osi < liczba_osi:
-                wartosc = joystick.get_axis(indeks_osi)
-                return wartosc if abs(wartosc) > MARTWA_STREFA_JOYSTICKA else 0.0
-            return 0.0
         wejscie_lewo_prawo += odczytaj_os(0)
         wejscie_przod_tyl -= odczytaj_os(1)
         wejscie_odchylenie -= odczytaj_os(2)
@@ -321,47 +353,76 @@ while dziala:
             sciany = dane_ksztaltu['sciany']
             kolory_scian_bryly = dane_ksztaltu['kolory_scian']
 
-            wierzcholki_kamery = [swiat_do_kamery(w, pos_kamery_dict, kam_do_przodu, kam_prawo, kam_gora) for w in wierzcholki]
+            wierzcholki_kamery = [swiat_do_kamery(w, pos_kamery_dict, kam_do_przodu, kam_prawo, kam_gora) for w in
+                                  wierzcholki]
             rzutowane_punkty_wszystkie = [rzutuj_wierzcholek(wk) for wk in wierzcholki_kamery]
 
             for idx_sciany, sciana_indeksy in enumerate(sciany):
                 punkty_ekranowe_sciany_float = []
                 punkty_ekranowe_sciany_int = []
                 czy_sciana_poprawna = True
-                srednie_z_sciany = 0.0
+                suma_z_sciany = 0.0
+                min_z_sciany = float('inf')
+                max_z_sciany = float('-inf')
                 liczba_wierzcholkow_sciany = 0
 
                 for indeks in sciana_indeksy:
-                    if not (0 <= indeks < len(rzutowane_punkty_wszystkie)):
-                         czy_sciana_poprawna = False; break
+                    if not (0 <= indeks < len(rzutowane_punkty_wszystkie) and 0 <= indeks < len(wierzcholki_kamery)):
+                        czy_sciana_poprawna = False;
+                        break
+
                     punkt_ekranowy_float = rzutowane_punkty_wszystkie[indeks]
                     wierzcholek_kamery = wierzcholki_kamery[indeks]
 
+                    # Sprawdzenie bliskiego cięcia i poprawności rzutowania
                     if wierzcholek_kamery['z'] < BLISKIE_CIECIE:
-                        czy_sciana_poprawna = False; break
+                        czy_sciana_poprawna = False;
+                        break
                     if punkt_ekranowy_float is None:
-                        czy_sciana_poprawna = False; break
+                        czy_sciana_poprawna = False;
+                        break
 
                     punkty_ekranowe_sciany_float.append(punkt_ekranowy_float)
                     punkty_ekranowe_sciany_int.append((int(punkt_ekranowy_float[0]), int(punkt_ekranowy_float[1])))
-                    srednie_z_sciany += wierzcholek_kamery['z']
+
+                    # ZMIANA: Aktualizacja sumy, min i max Z
+                    z_wierzcholka = wierzcholek_kamery['z']
+                    suma_z_sciany += z_wierzcholka
+                    min_z_sciany = min(min_z_sciany, z_wierzcholka)
+                    max_z_sciany = max(max_z_sciany, z_wierzcholka)
                     liczba_wierzcholkow_sciany += 1
 
                 if not czy_sciana_poprawna or liczba_wierzcholkow_sciany < 3: continue
 
                 pole = pole_ze_znakiem(punkty_ekranowe_sciany_float)
-                if pole < 0: continue
+                if pole < 1e-6:
+                    continue
 
-                srednie_z_sciany /= liczba_wierzcholkow_sciany
+                srednie_z_sciany = suma_z_sciany / liczba_wierzcholkow_sciany if liczba_wierzcholkow_sciany > 0 else float(
+                    'inf')
                 kolor_sciany = kolory_scian_bryly[idx_sciany]
-                sciany_do_narysowania.append({'punkty_ekranowe': punkty_ekranowe_sciany_int, 'srednie_z': srednie_z_sciany, 'kolor': kolor_sciany})
+                sciany_do_narysowania.append({
+                    'punkty_ekranowe': punkty_ekranowe_sciany_int,
+                    'srednie_z': srednie_z_sciany,
+                    'min_z': min_z_sciany,
+                    'max_z': max_z_sciany,
+                    'kolor': kolor_sciany
+                })
 
-        sciany_do_narysowania.sort(key=lambda s: s['srednie_z'], reverse=True)
+        if aktualny_tryb_sortowania == 0:  # Średnia Z
+            sciany_do_narysowania.sort(key=lambda s: s['srednie_z'], reverse=True)
+        elif aktualny_tryb_sortowania == 1:  # Minimalna Z (Najbliższy punkt)
+            # Sortujemy malejąco wg min Z, aby najpierw rysować te, których najbliższy punkt jest najdalej
+            sciany_do_narysowania.sort(key=lambda s: s['min_z'], reverse=True)
+        elif aktualny_tryb_sortowania == 2:  # Maksymalna Z (Najdalszy punkt)
+            # Sortujemy malejąco wg max Z, aby najpierw rysować te, których najdalszy punkt jest najdalej
+            sciany_do_narysowania.sort(key=lambda s: s['max_z'], reverse=True)
 
         for sciana_dane in sciany_do_narysowania:
             if sciana_dane['punkty_ekranowe'] and len(sciana_dane['punkty_ekranowe']) >= 3:
                 pygame.draw.polygon(ekran, sciana_dane['kolor'], sciana_dane['punkty_ekranowe'])
                 pygame.draw.polygon(ekran, CZARNY, sciana_dane['punkty_ekranowe'], 1)
+
 
     else:
         for dane_ksztaltu in dane_sceny:
